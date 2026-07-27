@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Because of YOU Game Design",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "title",
+    "world_span",
+    "turn_policy",
+    "style",
+    "timeline",
+    "npcs",
+    "measurement_dimensions",
+    "questionnaire"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "world_span": {
+      "type": "object",
+      "required": ["start", "end", "months"],
+      "properties": {
+        "start": {
+          "type": "string"
+        },
+        "end": {
+          "type": "string"
+        },
+        "months": {
+          "const": 5
+        }
+      }
+    },
+    "turn_policy": {
+      "type": "object",
+      "required": ["decided_by", "total_turns", "action_points_per_turn", "rationale"],
+      "properties": {
+        "decided_by": {
+          "const": "designer_agent"
+        },
+        "total_turns": {
+          "type": "integer",
+          "minimum": 120,
+          "maximum": 150
+        },
+        "action_points_per_turn": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "rationale": {
+          "type": "string"
+        }
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "minItems": 120,
+      "maxItems": 150,
+      "items": {
+        "type": "object",
+        "required": [
+          "index",
+          "month",
+          "period",
+          "event_id",
+          "title",
+          "tone",
+          "event_tags",
+          "location",
+          "time_slot",
+          "characters",
+          "summary",
+          "trigger",
+          "choices",
+          "controller_guidance",
+          "narrative_role"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "month": {
+            "enum": ["九月", "十月", "十一月", "十二月", "一月"]
+          },
+          "period": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "source_event_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tone": {
+            "type": "string"
+          },
+          "event_tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "narrative_role": {
+            "enum": ["plot", "bridge", "measurement_candidate"]
+          },
+          "location": {
+            "type": "string"
+          },
+          "time_slot": {
+            "type": "string"
+          },
+          "characters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "object"
+          },
+          "choices": {
+            "type": "array",
+            "minItems": 3,
+            "items": {
+              "type": "object",
+              "required": ["id", "text", "immediate_effect", "effects", "signals", "relationship_effects"]
+            }
+          },
+          "controller_guidance": {
+            "type": "object",
+            "required": ["must_preserve", "may_expand", "forbidden"]
+          },
+          "measurement_targets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "questionnaire_targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["factor_id", "factor_name", "item_id", "item_text"]
+            }
+          }
+        }
+      }
+    },
+    "npcs": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 10
+    },
+    "measurement_dimensions": {
+      "type": "array",
+      "minItems": 5
+    },
+    "questionnaire": {
+      "type": "object",
+      "required": ["id", "name", "item_count", "factor_count"],
+      "properties": {
+        "id": {
+          "const": "MSSMHS"
+        },
+        "item_count": {
+          "const": 60
+        },
+        "factor_count": {
+          "const": 10
+        }
+      }
+    }
+  }
+}

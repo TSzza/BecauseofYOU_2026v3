@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+data/sessions/*.json
+data/sessions/*.jsonl
+!data/sessions/.gitkeep
+tmp/
+tests/designer_evaluation/results/

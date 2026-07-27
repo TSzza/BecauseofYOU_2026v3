@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#182720">
+  <title>因为有你 · 银杏来信</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="paper-noise" aria-hidden="true"></div>
+  <div class="leaf leaf-a" aria-hidden="true"></div>
+  <div class="leaf leaf-b" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="因为有你首页">
+      <span class="brand-seal">由</span>
+      <span><strong>因为有你</strong><small>BECAUSE OF YOU</small></span>
+    </a>
+    <div class="session-chip"><i></i><span id="providerLabel">等待新故事</span></div>
+    <nav aria-label="游戏工具">
+      <button id="statusBtn" type="button" disabled>状态</button>
+      <button id="labBtn" type="button" disabled>研究台</button>
+      <button id="newBtn" class="danger" type="button">重置</button>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section id="landing" class="landing">
+      <div class="landing-art" aria-hidden="true">
+        <div class="sun"></div><div class="school"></div><div class="window-lines"></div>
+        <span class="season">SEP — JAN</span>
+      </div>
+      <div class="landing-copy">
+        <p class="kicker">五个月的高中生活 · 每局由 Designer 重新书写</p>
+        <h1>风经过走廊，<br><em>故事从九月开始。</em></h1>
+        <p class="lead">这不是一份摆在你面前的问卷。你会学习、交朋友、犹豫、休息，也会在平常的小事里留下选择的痕迹。</p>
+        <form id="launchForm" class="launch-form">
+          <label><span>你的名字</span><input id="nameInput" maxlength="12" autocomplete="off" placeholder="留空则随机生成"></label>
+          <label><span>实验种子</span><input id="seedInput" inputmode="numeric" pattern="[0-9]*" placeholder="留空随机；填写可复现实验"></label>
+          <button id="startBtn" type="submit"><span>生成这一局</span><b>进入校园 →</b></button>
+        </form>
+        <p class="ethics">科研 Demo · 行为反馈不构成心理诊断或医疗建议</p>
+      </div>
+    </section>
+
+    <section id="game" class="game hidden" aria-live="polite">
+      <div class="hud-row">
+        <button class="player-chip" id="playerChip" type="button" aria-label="打开角色状态">
+          <span class="mini-avatar" id="avatar">林</span>
+          <span><small id="profileMeta">高一</small><b id="playerName">林见夏</b></span>
+          <i>状态</i>
+        </button>
+        <section class="time-hud" aria-label="游戏时间与进度">
+          <div><small id="dateLabel">九月 · 月初</small><b id="sceneTitle">报到与宿舍</b></div>
+          <div class="time-track"><i id="progressBar"></i></div>
+          <span id="turnLabel">第 1 回合</span>
+        </section>
+        <div class="ap-chip"><small>本回合行动力</small><b id="apLabel">3</b></div>
+      </div>
+
+      <section class="playfield">
+        <article class="story-stage">
+          <div class="scene-meta"><span id="toneLabel">清淡</span><i></i><span>校园纪事</span></div>
+          <blockquote id="sceneIntro"></blockquote>
+          <div id="lastResult" class="result hidden"></div>
+        </article>
+
+        <section class="command-surface">
+          <header><div><small>YOUR DECISION</small><h2>把这段时间放在哪里？</h2></div><span>选择即刻记录</span></header>
+          <div id="choiceGrid" class="choice-grid"></div>
+          <div id="freeAction" class="free-action">
+            <textarea id="freeText" maxlength="300" aria-label="自由行动" placeholder="或者，写下一件你真正想做的事……"></textarea>
+            <div><small><span id="charCount">0</span>/300 · Ctrl/⌘ + Enter 提交</small><button id="freeBtn" type="button">自由行动 →</button></div>
+          </div>
+        </section>
+      </section>
+
+      <button id="hintChip" class="hint-chip" type="button">Designer 本局生成 <b id="dynamicTurns">--</b> 回合</button>
+    </section>
+  </main>
+
+  <div id="scrim" class="scrim hidden"></div>
+  <aside id="statusDrawer" class="drawer drawer-left" aria-hidden="true">
+    <header><div><small>PLAYER STATE</small><h2>角色与关系</h2></div><button data-close type="button" aria-label="关闭">×</button></header>
+    <div class="drawer-body"><section><h3>当前属性</h3><div id="stats" class="stats"></div></section><section><h3>身边的人</h3><div id="npcList" class="people"></div></section></div>
+  </aside>
+  <aside id="labDrawer" class="drawer drawer-right" aria-hidden="true">
+    <header><div><small>RESEARCH CONSOLE</small><h2>研究调试台</h2></div><button data-close type="button" aria-label="关闭">×</button></header>
+    <div class="lab-tabs" role="tablist"><button class="active" data-tab="critic" type="button">Critic</button><button data-tab="designer" type="button">Designer</button><button data-tab="trace" type="button">Trace</button></div>
+    <div class="drawer-body">
+      <section id="criticTab" class="tab-panel"><div class="critic-overview"><div id="ring" class="ring"><div><b id="completion">0%</b><small>样本进度</small></div></div><p id="criticSummary">完成行为后生成可修正的研究预览。</p></div><div id="dimensions" class="dimensions"></div><button id="reportBtn" class="secondary" type="button">打开阶段报告</button></section>
+      <section id="designerTab" class="tab-panel hidden"><div id="designInfo" class="key-values"></div></section>
+      <section id="traceTab" class="tab-panel hidden"><div class="trace-tools"><span id="eventCount">0 条行为</span><button id="exportBtn" type="button">导出 JSON</button></div><div id="traceList" class="trace-list"></div></section>
+    </div>
+  </aside>
+
+  <dialog id="reportDialog"><button id="closeReport" class="dialog-close" type="button">×</button><header><small>CRITIC AGENT · RESEARCH VIEW</small><h2>阶段性行为倾向报告</h2><p>请结合证据数量、替代解释和数据缺口阅读。</p></header><div id="reportContent" class="report-content"></div></dialog>
+  <div id="loading" class="loading hidden"><div class="loader"><i></i><i></i><i></i></div><p id="loadingText">Designer 正在铺开这一学期……</p></div>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
+
