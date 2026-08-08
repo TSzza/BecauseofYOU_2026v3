@@ -112,6 +112,7 @@ class NovelIndexer:
         character_candidates = self._extract_character_candidates(text, entity_mentions)
         events = self._extract_events(sentences, time_mentions, entity_mentions)
         events = self._order_events(events)
+        self._annotate_discourse_context(events, sentences, entity_mentions)
         self._link_cross_event_causes(events)
         character_resolution = self._resolve_character_identities(sentences, entity_mentions, events)
         plot_events = self._merge_plot_events(events)
@@ -142,6 +143,7 @@ class NovelIndexer:
                 "character_candidates": character_candidates,
                 "event_count": len(events),
                 "unresolved_pronoun_count": sum(1 for event in events if event.event.get("unresolved_pronouns")),
+                "consistency_audit": self._consistency_audit(events, character_lines, plot_events),
             },
             "handoff": {
                 "llm_required_fields": [
@@ -298,14 +300,15 @@ class NovelIndexer:
             shared_people = set(event.participants) & set(previous.participants)
             shared_places = set(event.space["location_ids"]) & set(previous.space["location_ids"])
             has_new_time = bool(event.time.get("mentions"))
+            semantic_continuity = self._event_semantic_continuity(previous, event)
             # Candidate plot grouping is deliberately broader than the old
             # participant-only rule. A one-sentence continuation in the same
             # discourse block is retained for semantic review even when entity
             # recognition missed the repeated subject.
             should_merge = (
-                sentence_gap <= 1 and not has_new_time
+                sentence_gap <= 1 and not has_new_time and semantic_continuity
             ) or (
-                sentence_gap <= 3 and not has_new_time and bool(shared_people or shared_places)
+                sentence_gap <= 3 and not has_new_time and bool(shared_people or shared_places) and semantic_continuity
             )
             if should_merge:
                 groups[-1].append(event)
@@ -329,13 +332,72 @@ class NovelIndexer:
                 "raw_text": "".join(item.event["raw_text"] for item in group),
                 "summary": None,
                 "narrative_function": None,
-                "merge_method": "adjacent_shared_participant_or_location",
+                "merge_method": "semantic_continuity_with_shared_context",
                 "confidence": 0.65 if len(group) > 1 else 0.45,
                 "boundary_before": "document_start" if index == 1 else boundary_reasons[index - 2],
                 "llm_review_required": len(group) == 1,
                 "affective_context": self._aggregate_event_affect(group),
             })
         return result
+
+    @staticmethod
+    def _event_semantic_continuity(previous: EventItem, current: EventItem) -> bool:
+        """Evidence-constrained event continuity without inventing latent plot facts."""
+        prev = set(re.findall(r"[\u4e00-\u9fff]{2,}|[A-Za-z]{3,}", previous.event.get("raw_text", "").lower()))
+        curr = set(re.findall(r"[\u4e00-\u9fff]{2,}|[A-Za-z]{3,}", current.event.get("raw_text", "").lower()))
+        overlap = len(prev & curr) / max(1, min(len(prev), len(curr)))
+        trigger_overlap = bool(set(previous.event.get("triggers", [])) & set(current.event.get("triggers", [])))
+        # Adjacent sentences with a repeated subject or scene are coherent even
+        # when only one lexical token overlaps; otherwise require lexical support.
+        return overlap >= 0.18 or trigger_overlap or bool(set(previous.participants) & set(current.participants))
+
+    def _annotate_discourse_context(self, events: list[EventItem], sentences: list[dict[str, Any]], entities: list[EntityMention]) -> None:
+        """Attach viewpoint, speech attribution and narrative/story ordering hints."""
+        by_sentence = {sentence["index"]: sentence for sentence in sentences}
+        entity_by_sentence: dict[int, list[EntityMention]] = defaultdict(list)
+        for mention in entities:
+            entity_by_sentence[mention.sentence_index].append(mention)
+        last_speaker: str | None = None
+        for event in events:
+            text = event.event.get("raw_text", "")
+            mentions = [item for item in entity_by_sentence.get(event.time["sentence_index"], []) if item.entity_type == "character"]
+            quoted = any(mark in text for mark in ("“", "”", "「", "」", '"'))
+            speaker = None
+            if quoted and mentions:
+                # Explicit speech verbs provide stronger attribution than mention proximity.
+                speech = re.search(r"(?:说|說|道|问|問|回答|喊|叫|said|asked|replied|told)\s*", text, re.IGNORECASE)
+                speaker = mentions[0].entity_id if speech else (mentions[-1].entity_id if len(mentions) == 1 else None)
+            if speaker:
+                last_speaker = speaker
+            event.event["discourse"] = {
+                "quoted": quoted,
+                "speaker_id": speaker,
+                "inherited_speaker_id": last_speaker if quoted and speaker is None else None,
+                "viewpoint": "dialogue" if quoted else ("internal" if re.search(r"想|觉得|覺得|心里|心裡|thought|felt|realized", text, re.IGNORECASE) else "narration"),
+                "source_sentence_index": by_sentence.get(event.time["sentence_index"], {}).get("index"),
+            }
+            event.time["discourse_sequence"] = event.time["sentence_index"]
+            event.time["story_time_status"] = "candidate" if any(key in text for key in ("回忆", "想起", "那年", "多年以前", "曾经", "flashback")) else "anchored"
+
+    @staticmethod
+    def _consistency_audit(events: list[EventItem], character_lines: list[dict[str, Any]], plot_events: list[dict[str, Any]]) -> dict[str, Any]:
+        event_ids = {event.event_id for event in events}
+        referenced = {item["world_event_id"] for route in character_lines for item in route["items"]}
+        plot_refs = {event_id for plot in plot_events for event_id in plot["member_world_event_ids"]}
+        temporal_edges = 0
+        temporal_cycles = 0
+        for left, right in zip(events, events[1:]):
+            temporal_edges += int(left.sequence < right.sequence)
+            temporal_cycles += int(left.sequence == right.sequence)
+        return {
+            "event_count": len(events),
+            "character_event_reference_coverage": round(len(referenced & event_ids) / max(1, len(referenced)), 4),
+            "plot_event_reference_coverage": round(len(plot_refs & event_ids) / max(1, len(plot_refs)), 4),
+            "unreferenced_world_events": sorted(event_ids - plot_refs),
+            "temporal_monotonic_adjacencies": temporal_edges,
+            "temporal_equal_sequence_conflicts": temporal_cycles,
+            "status": "ok" if not (event_ids - plot_refs) and temporal_cycles == 0 else "review_required",
+        }
 
     @staticmethod
     def _aggregate_event_affect(events: list[EventItem]) -> dict[str, Any] | None:
@@ -531,7 +593,7 @@ class NovelIndexer:
             people = sorted(set(people))
             affect = self._affect_analyzer.analyze_event(text, sentence["start"], people)
             self._bind_affect_holders(affect, entities_by_sentence[sentence["index"]], people)
-            if not triggers and affect["evidence_count"] == 0:
+            if not triggers and affect["evidence_count"] == 0 and not times_by_sentence[sentence["index"]]:
                 continue
             if not triggers:
                 triggers = ["affective_expression"]

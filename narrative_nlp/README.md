@@ -40,7 +40,7 @@
 
 ### 3.1 文本和时间
 
-句切分保留原始字符位置，`source.indexed_start/indexed_end` 将清理后的正文映射回原文。时间规则覆盖章节、绝对日期、相对日/周/年、昼夜、季节、月份、校园节点及英文对应表达；每句没有时间词也会产生低置信度 sentence anchor。`LOCAL_TIME_BOUNDARY_RE` 识别“次日、后来、之后、当晚”等硬边界。当前不擅自改写倒叙，输出仍保留 `ordering_needs_llm_review`。
+句切分保留原始字符位置，`source.indexed_start/indexed_end` 将清理后的正文映射回原文。时间规则覆盖章节、绝对日期、相对日/周/年、昼夜、季节、月份、校园节点及英文对应表达；带有明确时间锚点但没有动作词的句子也会保留为事件，避免闪回和转场被丢弃。`LOCAL_TIME_BOUNDARY_RE` 识别“次日、后来、之后、当晚”等硬边界。事件同时保留 `discourse_sequence` 和 `story_sequence`，并标记 `story_time_status=anchored|candidate`。
 
 ### 3.2 实体与人物
 
@@ -48,17 +48,18 @@
 
 ### 3.3 World Event
 
-句子含中英文动作触发词时生成事件；即使没有明显触发词，也保留可追踪的句级事件锚点。事件包含：
+句子含中英文动作触发词、明确时间锚点或情绪证据时生成事件。事件包含：
 
 - `event_id`, `sequence`, `source_span`
 - `time`: raw/normalized/kind/confidence
 - `space`: location candidates
 - `event`: `text`, `trigger`, `summary` 占位、`narrative_function` 占位、`affect`
 - `participants`, `world_state`, `source`
+- `discourse`: 引语、说话人候选和叙事视角通道
 
 ### 3.4 Plot Event 聚合
 
-聚合条件为：相邻句且没有时间边界，或在 3 句窗口内共享人物/地点且没有时间边界。时间边界优先级最高。Plot Event 保留 `member_world_event_ids`、首尾 span、参与者、地点和 `affective_context`；KG 为每个成员建立 `aggregates` 边。因此压缩只改变叙事层级，不删除 World Event。
+聚合条件为：相邻句且没有时间边界并满足词汇、触发词或人物连续性，或在 3 句窗口内共享人物/地点且满足语义连续性。时间边界优先级最高。Plot Event 保留 `member_world_event_ids`、首尾 span、参与者、地点和 `affective_context`；KG 为每个成员建立 `aggregates` 边。因此压缩只改变叙事层级，不删除 World Event。
 
 ### 3.5 情绪证据与 VAD
 
@@ -119,6 +120,8 @@ KG 节点类型包括 `world_event`、`plot_event`、`character`、`location` �
 
 NLP 层只负责证据约束的结构化抽取；以下字段留给 Designer/LLM：`event.summary`、`event.narrative_function`、`event.causes`、`character.motivation`、`character.emotion`、`character.relationship_changes`、`adaptation.bridge_content`。LLM 新填字段必须同时给出 `source_span` 和 `fill_mode`（`summarize/adapt/infer/unresolved`）。Designer 应优先读取 `world_line.plot_events`，再沿 `member_world_event_ids` 回查原文。
 
+Controller 可以直接使用确定性锚点生成基础剧情树，但必须把 `candidate`、`infer`、`possible_*` 和 `requires_review` 当作候选而不是事实。开放式文学解释、深层动机、象征/反讽、心理测量映射和游戏分支创作仍交给 Designer/LLM。
+
 ## 6. 20 篇实验与审计
 
 `affect_batch_audit_v4.json` 由审计脚本读取 20 个原始文本和 20 个 JSON 重新计算，不是手工填写。
@@ -134,7 +137,7 @@ NLP 层只负责证据约束的结构化抽取；以下字段留给 Designer/LLM
 | 跨事件情绪原因候选 | 0 | 1,452 |
 | 悬空引用 / span 错误 / 状态错误 | 0 / 0 / 0 | 0 / 0 / 0 |
 
-结构审计逐本检查：情绪 schema、Plot 情绪上下文、世界摘要、人物情绪 schema、人物摘要、事件引用、原文 span、状态连续性和 Plot-KG 锚点。20/20 结果结构分数为 1.0。当前没有人工 gold set，故不能据此声称文学语义 precision/recall 已达到目标。
+结构审计逐本检查：情绪 schema、Plot 情绪上下文、世界摘要、人物情绪 schema、人物摘要、事件引用、原文 span、状态连续性和 Plot-KG 锚点。运行时 `indexes.consistency_audit` 进一步检查 Plot/Character 对 World Event 的覆盖、时间序列冲突和未引用事件。历史 20/20 结果结构分数为 1.0；当前 17 个单元测试全部通过。当前没有人工 gold set，故不能据此声称文学语义 precision/recall 已达到目标。
 
 ## 7. 已知边界
 
